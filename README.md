@@ -26,7 +26,7 @@ A Windows desktop application for bulk delivery testing of email and SMS (simula
    - Create `senders_sms.txt` (one sender phone number per line, format +44...)
 3. **Start a local SMTP debug server (for email testing):**
    ```sh
-   python -m smtpd -c DebuggingServer -n localhost:1025
+   python -m aiosmtpd -n -l localhost:1025
    ```
    - This will print all received emails to the terminal. No real emails are sent.
 
