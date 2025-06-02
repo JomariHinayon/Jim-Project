@@ -1,15 +1,15 @@
-# Delivery Testing App
+# Delivery Testing App (SMS Only)
 
-A Windows desktop application for bulk delivery testing of email and SMS (simulated), with sender rotation, logging, and no authentication required. Built with Python and PyQt5.
+A Windows desktop application for bulk delivery testing of SMS (simulated), with sender rotation, logging, and no authentication required. Built with Python and PyQt5.
 
 ## Features
-- Two tabs: Email and Mobile (SMS)
-- Bulk sending (up to 5,000 emails, 1,000 SMS per session)
-- Sender rotation from text files
+- Mobile (SMS) tab for sending simulated SMS
+- Bulk sending (up to 1,000 SMS per session)
+- Sender rotation from text file
 - Throttling, error handling, retry logic
 - Real-time counters and logs
 - No session persistence
-- No authentication required (uses local SMTP server for email)
+- No authentication required
 
 ## Requirements
 - Python 3.7+
@@ -21,14 +21,8 @@ A Windows desktop application for bulk delivery testing of email and SMS (simula
    ```sh
    pip install -r requirements.txt
    ```
-2. **Prepare sender pools:**
-   - Create `senders_email.txt` (one sender email per line)
+2. **Prepare sender pool:**
    - Create `senders_sms.txt` (one sender phone number per line, format +44...)
-3. **Start a local SMTP debug server (for email testing):**
-   ```sh
-   python -m aiosmtpd -n -l localhost:1025
-   ```
-   - This will print all received emails to the terminal. No real emails are sent.
 
 ## Usage
 - Run the app:
@@ -52,7 +46,6 @@ A Windows desktop application for bulk delivery testing of email and SMS (simula
 
 ## Notes
 - No real SMS are sent; SMS sending is simulated and logged.
-- For real email delivery, you must use a real SMTP server and update the code accordingly.
 - No user data is persisted between runs.
 
 ## License

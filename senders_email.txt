@@ -1,3 +1,0 @@
-sender1@example.com
-sender2@example.com
-sender3@example.com 

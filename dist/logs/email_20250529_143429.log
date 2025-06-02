@@ -1,2 +1,0 @@
-FAILED: sender1@example.com -> test@example.com [2025-05-29 14:34:33.314183] Reason: [WinError 10061] No connection could be made because the target machine actively refused it
-RETRY FAILED: sender1@example.com -> test@example.com [2025-05-29 14:34:38.405645] Reason: [WinError 10061] No connection could be made because the target machine actively refused it
