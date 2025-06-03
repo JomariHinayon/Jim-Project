@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QLabel, QSpinBox, QTextEdit, QMessageBox, QGroupBox, QHBoxLayout, QSizePolicy, QProgressBar, QFrame, QScrollArea
 )
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
-from PyQt5.QtGui import QIcon, QFont, QPixmap
+from PyQt5.QtGui import QIcon, QFont, QPixmap, QTextCursor
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -30,8 +30,19 @@ def is_valid_uk_phone(phone):
 def generate_generic_sender():
     return f'+4477009{random.randint(10000,99999)}'
 
+def format_log_line(status, sender, recipient, reason=None):
+    time_str = datetime.now().strftime('%H:%M:%S')
+    if status == "SENT":
+        return f"<span style='color:#107c10;'>✅ [{time_str}] From: <b>{sender}</b> → To: <b>{recipient}</b></span>"
+    elif status == "FAILED":
+        return f"<span style='color:#e81123;'>❌ [{time_str}] From: <b>{sender}</b> → To: <b>{recipient}</b> <i>({reason})</i></span>"
+    elif status == "RETRY":
+        return f"<span style='color:#ff8c00;'>🔁 [{time_str}] RETRY From: <b>{sender}</b> → To: <b>{recipient}</b></span>"
+    else:
+        return f"[{time_str}] {status}: {sender} → {recipient}"
+
 class SMSSenderThread(QThread):
-    progress = pyqtSignal(int, int)
+    progress = pyqtSignal(int, int, str, str, str, str)  # sent, total, sender, recipient, status, reason
     finished = pyqtSignal(int, int)
     failed = pyqtSignal(str)
 
@@ -56,6 +67,7 @@ class SMSSenderThread(QThread):
                 if self.log_enabled:
                     with open(log_path, 'a', encoding='utf-8') as f:
                         f.write(f"FAILED: {sender} -> {self.recipient} [{datetime.now()}] Reason: Simulated failure\n")
+                self.progress.emit(sent, i+1, sender, self.recipient, "FAILED", "Simulated failure")
                 self.failed.emit(f"Failed to send from {sender} (simulated)")
                 # Basic retry logic
                 time.sleep(1)
@@ -64,6 +76,7 @@ class SMSSenderThread(QThread):
                     if self.log_enabled:
                         with open(log_path, 'a', encoding='utf-8') as f:
                             f.write(f"RETRY SENT: {sender} -> {self.recipient} [{datetime.now()}]\n")
+                    self.progress.emit(sent, i+1, sender, self.recipient, "RETRY", None)
                 else:
                     if self.log_enabled:
                         with open(log_path, 'a', encoding='utf-8') as f:
@@ -73,7 +86,7 @@ class SMSSenderThread(QThread):
                 if self.log_enabled:
                     with open(log_path, 'a', encoding='utf-8') as f:
                         f.write(f"SENT: {sender} -> {self.recipient} [{datetime.now()}]\n")
-            self.progress.emit(sent, i+1)
+                self.progress.emit(sent, i+1, sender, self.recipient, "SENT", None)
             time.sleep(0.1)  # Throttle
         self.finished.emit(sent, failed)
 
@@ -86,12 +99,12 @@ class CollapsibleLog(QWidget):
         self.expanded = False
         self.toggle_btn = QPushButton('Show Log ▼')
         self.toggle_btn.setCheckable(True)
-        self.toggle_btn.setStyleSheet('QPushButton { background: #f3f3f3; border: none; color: #0078d7; font-weight: bold; }')
+        self.toggle_btn.setStyleSheet('QPushButton { background: #f3f3f3; border: none; color: #0078d7; font-weight: bold; padding-top: 8px; padding-bottom: 8px; }')
         self.toggle_btn.clicked.connect(self.toggle)
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
         self.log_area.setFont(QFont("Consolas", 10))
-        self.log_area.setStyleSheet("background: #fafcff; border: 1px solid #e0e0e0; border-radius: 4px;")
+        self.log_area.setStyleSheet("background: #fafcff; border: 1px solid #e0e0e0; border-radius: 4px; margin-top: 8px;")
         self.log_area.setMinimumHeight(120)
         self.log_area.setVisible(False)
         layout = QVBoxLayout()
@@ -105,6 +118,7 @@ class CollapsibleLog(QWidget):
         self.toggle_btn.setText('Hide Log ▲' if self.expanded else 'Show Log ▼')
     def append(self, text):
         self.log_area.append(text)
+        self.log_area.moveCursor(QTextCursor.End)
     def clear(self):
         self.log_area.clear()
 
@@ -234,13 +248,16 @@ class SMSTab(QWidget):
             self.launch.setEnabled(True)
             self.stop_btn.setEnabled(False)
 
-    def update_status(self, sent, total):
+    def update_status(self, sent, total, sender=None, recipient=None, status=None, reason=None):
         percent = int((total / max(1, self.num_texts.value())) * 100)
         self.progress.setValue(percent)
         self.status.setText(f"<span style='color:#0078d7;'>Sent: {sent}/{total}</span>")
-        line = f"Sent: {sent}/{total}"
-        self.log_widget.append(line)
-        self.log_lines.append(line)
+        if sender and recipient and status:
+            line = format_log_line(status, sender, recipient, reason)
+        else:
+            line = f"Sent: {sent}/{total}"
+            self.log_widget.append(line)
+            self.log_lines.append(line)
 
     def finish_status(self, sent, failed):
         color = "#107c10" if failed == 0 else "#e81123"
