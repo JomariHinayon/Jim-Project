@@ -12,6 +12,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QIcon, QFont, QPixmap, QTextCursor
+from twilio.rest import Client
+from dotenv import load_dotenv
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -23,6 +25,12 @@ def resource_path(relative_path):
     return os.path.join(os.path.abspath("."), relative_path)
 
 LOGO_PATH = resource_path('sms logo.png')
+
+# Load environment variables from .env
+load_dotenv()
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
+TWILIO_SENDER_NUMBERS = os.getenv('TWILIO_SENDER_NUMBERS', '').split(',')
 
 def is_valid_uk_phone(phone):
     return phone.startswith('+44') and phone[1:].isdigit() and len(phone) >= 12
@@ -52,6 +60,8 @@ class SMSSenderThread(QThread):
         self.num_texts = num_texts
         self.log_enabled = log_enabled
         self._stop_event = threading.Event()
+        self.twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        self.sender_numbers = [num.strip() for num in TWILIO_SENDER_NUMBERS if num.strip()]
 
     def run(self):
         sent = 0
@@ -60,33 +70,25 @@ class SMSSenderThread(QThread):
         for i in range(self.num_texts):
             if self._stop_event.is_set():
                 break
-            sender = generate_generic_sender()
-            # Simulate random failure
-            if random.random() < 0.02:  # 2% chance to fail
-                failed += 1
-                if self.log_enabled:
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(f"FAILED: {sender} -> {self.recipient} [{datetime.now()}] Reason: Simulated failure\n")
-                self.progress.emit(sent, i+1, sender, self.recipient, "FAILED", "Simulated failure")
-                self.failed.emit(f"Failed to send from {sender} (simulated)")
-                # Basic retry logic
-                time.sleep(1)
-                if random.random() < 0.5:
-                    sent += 1
-                    if self.log_enabled:
-                        with open(log_path, 'a', encoding='utf-8') as f:
-                            f.write(f"RETRY SENT: {sender} -> {self.recipient} [{datetime.now()}]\n")
-                    self.progress.emit(sent, i+1, sender, self.recipient, "RETRY", None)
-                else:
-                    if self.log_enabled:
-                        with open(log_path, 'a', encoding='utf-8') as f:
-                            f.write(f"RETRY FAILED: {sender} -> {self.recipient} [{datetime.now()}] Reason: Simulated failure\n")
-            else:
+            sender = random.choice(self.sender_numbers) if self.sender_numbers else None
+            try:
+                message = self.twilio_client.messages.create(
+                    body="Hi Jim This Tested from the Software",  # Updated message body
+                    from_=sender,
+                    to=self.recipient
+                )
                 sent += 1
                 if self.log_enabled:
                     with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(f"SENT: {sender} -> {self.recipient} [{datetime.now()}]\n")
+                        f.write(f"SENT: {sender} -> {self.recipient} [{datetime.now()}] SID: {message.sid}\n")
                 self.progress.emit(sent, i+1, sender, self.recipient, "SENT", None)
+            except Exception as e:
+                failed += 1
+                if self.log_enabled:
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(f"FAILED: {sender} -> {self.recipient} [{datetime.now()}] Reason: {str(e)}\n")
+                self.progress.emit(sent, i+1, sender, self.recipient, "FAILED", str(e))
+                self.failed.emit(f"Failed to send from {sender}: {str(e)}")
             time.sleep(0.1)  # Throttle
         self.finished.emit(sent, failed)
 
